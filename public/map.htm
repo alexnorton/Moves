@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Predictor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Bootstrap -->
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+
+    <!--<link rel="stylesheet" href="/style.css"/>-->
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+    <script src="//oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    <script src="//oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+<body>
+<div class="container">
+    <div>
+        <div id="map_canvas" style="margin-top: 20px; width: 100%; height: 600px;"></div>
+    </div>
+</div>
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="//code.jquery.com/jquery-2.1.0.min.js"></script>
+<!-- Include all compiled plugins (below), or include individual files as needed -->
+<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+<link href='//api.tiles.mapbox.com/mapbox.js/v1.6.0/mapbox.css' rel='stylesheet' />
+<script src='//api.tiles.mapbox.com/mapbox.js/v1.6.0/mapbox.js'></script>
+<script type="text/javascript">
+    var map;
+
+    $(document).ready(function() {
+
+        if(!window.location.hash) {
+            window.location.hash = 1;
+        }
+
+        var userId = window.location.hash.substring(1);
+
+        var layers = {
+            "MapBox": L.mapbox.tileLayer('alexnorton.h2hfjmmo', {detectRetina: true}),
+            "Mapnik": L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+            "Esri WorldStreetMap": L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'),
+            "Esri WorldTopoMap": L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'),
+            "Esri WorldImagery": L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {detectRetina: true}),
+            "MapQuest Open": L.tileLayer('http://otile{s}.mqcdn.com/tiles/1.0.0/map/{z}/{x}/{y}.jpeg', {subdomains: '1234'})
+        }
+
+        var placeLayer;
+        var journeyLayer;
+
+        var map = L.map('map_canvas', {layers: layers.MapBox});
+
+
+        var control = L.control.layers(layers).addTo(map);
+
+        $.getJSON("/places.json?user=" + userId, function(data) {
+            placeLayer = L.geoJson(data, {
+                onEachFeature: function(feature, layer) {
+                    layer.bindPopup(feature.properties.name);
+                    layer.on('click', function(e) {
+                       console.log(feature);
+
+                        $.getJSON("/journeys.json?user=" + userId + "&from=" + feature.properties.id, function(data) {
+                            journeyLayer.clearLayers();
+                            journeyLayer = L.geoJson(data, {
+                                onEachFeature: function(feature, layer) {
+                                    layer.bindPopup(
+                                        feature.properties.from_name + " → " + feature.properties.to_name +
+                                        "<br>" +
+                                        feature.properties.count + "/" + feature.properties.total
+                                    );
+                                },
+                                style: function(feature) {
+                                    return {
+                                        opacity: 0.5 + (feature.geometry.properties.count / (feature.geometry.properties.total * 2))
+                                    };
+                                }
+                            });
+                            journeyLayer.addTo(map);
+//                            map.fitBounds(journeyLayer.getBounds());
+//                            control.addOverlay(journeyLayer, "Journeys");
+                        });
+
+                    });
+                }
+            });
+
+            placeLayer.addTo(map);
+            map.fitBounds(placeLayer.getBounds());
+            control.addOverlay(placeLayer, "Places");
+        });
+
+        $.getJSON("/journeys.json?user=" + userId, function(data) {
+            journeyLayer = L.geoJson(data, {
+                onEachFeature: function(feature, layer) {
+                    //layer.bindPopup(feature.properties.name);
+                }
+            });
+
+            journeyLayer.addTo(map);
+            map.fitBounds(journeyLayer.getBounds());
+            control.addOverlay(journeyLayer, "Journeys");
+        });
+
+//        $.getJSON("/users/10/clusters.json", function(data) {
+//            clusterLayer = L.geoJson(data, {
+//                pointToLayer: function (feature, latlng) {
+//                    var circle = L.circle(latlng, 2000, {
+//                        color: 'blue',
+//                        fillColor: '#00f',
+//                        fillOpacity: 0.5
+//                    });
+//
+//                    return circle;
+//                }
+//            })
+//
+//            clusterLayer.addTo(map);
+//            control.addOverlay(clusterLayer, "Clusters");
+//        });
+//
+//        $.getJSON("/users/10/edges.json", function(data) {
+//            edgeLayer = L.geoJson(data, {
+//                onEachFeature: function(feature, layer) {
+//                    layer.bindPopup(
+//                            feature.properties.count + "/" + feature.properties.total
+//                    );
+//                },
+//                style: function(feature) {
+//                    return {
+//                        opacity: feature.geometry.properties.count / feature.geometry.properties.total
+//                    };
+//                }
+//            });
+//            edgeLayer.addTo(map);
+//            control.addOverlay(edgeLayer, "Edges");
+//        });
+//
+//
+
+
+    });
+
+    var millisecondsToPrettyTime = function(milliseconds) {
+        var diff = milliseconds;
+
+        var hours = Math.floor(diff / (1000 * 60 * 60));
+        diff -= hours * (1000 * 60 * 60);
+
+        var mins = Math.floor(diff / (1000 * 60));
+        diff -= mins * (1000 * 60);
+
+        var seconds = Math.floor(diff / (1000));
+        diff -= seconds * (1000);
+
+        return hours + " hours, " + mins + " minutes, " + seconds + " seconds";
+    }
+</script>
+</body>
+</html>
